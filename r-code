@@ -1,0 +1,263 @@
+###libraries
+library(car)
+library(WRS2)
+library(effsize)
+library(MASS)
+library(foreign)
+library(quantreg)
+library(rcompanion)
+
+
+
+###functions
+# ---------------------------------------------------------------------------------------- ##
+# Author: John Fox                                                                         ##
+# Source: http://r.789695.n4.nabble.com/R-extend-summary-lm-for-hccm-td815004.html         ##
+# Adapted by Tony Cookson.                                                                 ##
+#        -- Only Change Made: Changed the name of the function (unwisely maybe)            ##
+#           to summaryR from summaryHCCM.lm.  I also changed the spelling of consistent    ##
+# ---------------------------------------------------------------------------------------- ##
+summaryR.lm <- function(model, type=c("hc3", "hc0", "hc1", "hc2", "hc4"), ...){
+  
+  if (!require(car)) stop("Required car package is missing.")
+  
+  type <- match.arg(type)
+  V <- hccm(model, type=type)
+  sumry <- summary(model)
+  table <- coef(sumry)
+  table[,2] <- sqrt(diag(V))
+  table[,3] <- table[,1]/table[,2]
+  table[,4] <- 2*pt(abs(table[,3]), df.residual(model), lower.tail=FALSE)
+  
+  sumry$coefficients <- table
+  p <- nrow(table)
+  hyp <- cbind(0, diag(p - 1))
+  sumry$fstatistic[1] <- linearHypothesis(model, hyp,white.adjust=type)[2,"F"]
+  
+  print(sumry)
+  cat("Note: Heteroscedasticity-consistent standard errors using adjustment", type, "\n")
+}
+
+
+
+
+###Paired analysis
+##T.max.open-T.max.canopy
+#setting environment folder
+setwd("c:/r/tree")
+
+#importing database
+tree <- read.table("results_dataset_tree.txt", header=TRUE, sep="\t", na.strings="NA", dec=".", strip.white=TRUE)
+
+# parametric paired t-test
+with(tree, (t.test(T.max.open, T.max.canopy, alternative='two.sided', 
+                   conf.level=.95, paired=TRUE)))
+
+#Wilcoxon non-parametric signed rank test with continuity correction on paired samples
+with(tree, median(T.max.open - T.max.canopy, na.rm=TRUE)) 
+with(tree, wilcox.test(T.max.open, T.max.canopy, alternative='two.sided', 
+                       paired=TRUE))
+
+#importing maximum temperature database in long format
+tmax_long <- read.table("tmax_long.txt", header=TRUE, sep="\t", 
+                        na.strings="NA", dec=".", strip.white=TRUE)
+
+#Levene test of homogeneity of variance
+with(tmax_long, tapply(Tmax, Open_Canopy, var, na.rm=TRUE))
+leveneTest(Tmax ~ Open_Canopy, data=tmax_long, center="median")
+
+#Yuen robust paired test on 20% trimmed means
+yuend(tree$T.max.open,tree$T.max.canopy)
+
+#Effect size - Cohen D
+cohen.d(tmax_long$Tmax,tmax_long$Open_Canopy,paired=TRUE)
+
+#Shapiro and Wilk normality test
+shapiro.test(tree$T.max.open...T.max.canopy)
+
+
+##T.min.open-T.min.canopy
+#parametric paired t-test
+with(tree, (t.test(T.min.open, T.min.canopy, alternative='two.sided', 
+                   conf.level=.95, paired=TRUE)))
+
+#Wilcoxon non-parametric signed rank test with continuity correction on paired samples
+with(tree, median(T.min.open - T.min.canopy, na.rm=TRUE)) 
+with(tree, wilcox.test(T.min.open, T.min.canopy, alternative='two.sided', 
+                       paired=TRUE))
+
+#importing maximum temperature database in long format
+tmin_long <- read.delim("tmin_long.txt")
+
+#Levene test of homogeneity of variance
+with(tmin_long, tapply(T_min, Open_Canopy, var, na.rm=TRUE))
+leveneTest(T_min ~ Open_Canopy, data=tmin_long, center="median")
+
+#Yuen robust paired test on 20% trimmed means
+yuend(tree$T.min.open,tree$T.min.canopy)
+
+# Effect size - Cohen D
+cohen.d(tmin_long$T_min,tmin_long$Open_Canopy,paired=TRUE)
+
+#Shapiro and Wilk normality test
+shapiro.test(tree$T.min.open..T.min.canopy)
+
+
+##D = (Tmax open - T min open) - (T max canopy - T min canopy)
+# parametric paired t-test
+with(tree, (t.test(Tmax_open.Tmin_open, Tmax_canopy.Tmin_canopy, alternative='two.sided', 
+                   conf.level=.95, paired=TRUE)))
+
+#Wilcoxon non-parametric signed rank test with continuity correction on paired samples
+with(tree, median(Tmax_open.Tmin_open - Tmax_canopy.Tmin_canopy, na.rm=TRUE)) 
+with(tree, wilcox.test(Tmax_open.Tmin_open, Tmax_canopy.Tmin_canopy, alternative='two.sided', 
+                       paired=TRUE))
+
+#importing D database in long format
+d_long <- read.delim("d_long.txt")
+with(d_long, tapply(Tmax_Tmin, Open_Canopy, var, na.rm=TRUE))
+
+#Levene test of homogeneity of variance
+leveneTest(Tmax_Tmin ~ Open_Canopy, data=d_long, center="median")
+
+#Yuen robust paired test on 20% trimmed means
+yuend(tree$Tmax_open.Tmin_open,tree$Tmax_canopy.Tmin_canopy)
+
+#Effect size - Cohen D
+cohen.d(d_long$Tmax_Tmin,d_long$Open_Canopy,paired=TRUE)
+
+#Shapiro and Wilk normality test
+shapiro.test(tree$D....Tmax.open...T.min.open.....T.max.canopy...T.min.canopy.)
+
+
+
+###Regressions
+##T.max.open-T.max.canopy
+#Parametric multiple regression
+RegModel.tmax <- lm(T.max.open...T.max.canopy~Canopy.index+Rural, data=tree)
+summary(RegModel.tmax)
+
+#Durbin and Watson test on residual autocorrelation
+durbinWatsonTest(RegModel.tmax)
+
+#Score Test for Non-Constant Error Variance for Homoscedasticity
+ncvTest(RegModel.tmax)
+
+#Variance Inflaction Fator (VIF) for multicollinearity analysis
+vif(RegModel.tmax)
+
+#Outlier analysis - Cook distances > 1 and Hat Values > 3(k+1)/n, where k is the number of parameters and n is the number of cases
+sum(cooks.distance(RegModel.tmax)>1)
+sum(hatvalues(RegModel.tmax)>0.0247933884297521)
+mean(hatvalues(RegModel.tmax))
+
+#Parametric multipe regression with Heteroscedasticity-consistent standard errors using adjustment
+summaryR.lm(RegModel.tmax)
+
+#robust iterated reweighted least squares (IRWLS) with MM-estimator
+RegModel.tmaxlmrob<-lmrob(T.max.open...T.max.canopy~Canopy.index+Rural, data=tree)
+summary(RegModel.tmaxlmrob)
+RegModel.tmaxlmrobnull<-lmrob(T.max.open...T.max.canopy~1, data=tree)
+anova(RegModel.tmaxlmrob, RegModel.tmaxlmrobnull)
+
+#non-parametric quantile regression
+RegModel.tmaxnp<-rq(T.max.open...T.max.canopy~Canopy.index+Rural, data=tree, tau=0.5)
+summary(RegModel.tmaxnp)
+summary(RegModel.tmaxnp, se="nid")
+model.tmaxnpnull = rq(T.max.open...T.max.canopy~1, data=tree, tau=0.5)
+anova(RegModel.tmaxnp, model.tmaxnpnull)
+nagelkerke(RegModel.tmaxnp)
+
+
+##D = (Tmax open - T min open) - (T max canopy - T min canopy)
+#Non-linear relationship analysis
+d_nls <- nls(D....Tmax.open...T.min.open.....T.max.canopy...T.min.canopy. ~ p1+p2*Canopy.index^p3+p4*Dist..from.thermometer.under.tree.to.edge.of.canopy..m., data=tree, start=list(p1=0.347909,p2=0.035724,p3=1,p4=0.121947))
+summary(d_nls)
+
+#Parametric multiple regression
+RegModel.D <- lm(D....Tmax.open...T.min.open.....T.max.canopy...T.min.canopy.~Canopy_index_2+Dist..from.thermometer.under.tree.to.edge.of.canopy..m., data=tree)
+summary(RegModel.D)
+
+#Durbin and Watson test on residual autocorrelation
+durbinWatsonTest(RegModel.D)
+
+#Score Test for Non-Constant Error Variance for Homoscedasticity
+ncvTest(RegModel.D)
+
+#Variance Inflaction Fator (VIF) for multicollinearity analysis
+vif(RegModel.D)
+
+#Outlier analysis - Cook distances > 1 and Hat Values > 3(k+1)/n, where k is the number of parameters and n is the number of cases
+sum(cooks.distance(RegModel.D)>1)
+sum(hatvalues(RegModel.D)>0.0247933884297521)
+mean(hatvalues(RegModel.D))
+
+#Parametric multipe regression with Heteroscedasticity-consistent standard errors using adjustment
+summaryR.lm(RegModel.D)
+
+#robust iterated reweighted least squares (IRWLS) with MM-estimator
+RegModel.Dlmrob<-lmrob(D....Tmax.open...T.min.open.....T.max.canopy...T.min.canopy.~Canopy_index_2+Dist..from.thermometer.under.tree.to.edge.of.canopy..m., data=tree)
+summary(RegModel.Dlmrob)
+RegModel.Dlmrobnull<-lmrob(D....Tmax.open...T.min.open.....T.max.canopy...T.min.canopy.~1, data=tree)
+anova(RegModel.Dlmrob, RegModel.Dlmrobnull)
+
+#non-parametric quantile regression
+RegModel.Dnp<-rq(D....Tmax.open...T.min.open.....T.max.canopy...T.min.canopy.~Canopy_index_2+Dist..from.thermometer.under.tree.to.edge.of.canopy..m., data=tree, tau=0.5)
+summary(RegModel.Dnp)
+summary(RegModel.Dnp, se="nid")
+model.Dnpnull = rq(D....Tmax.open...T.min.open.....T.max.canopy...T.min.canopy.~1, data=tree, tau=0.5)
+anova(RegModel.Dnp, model.Dnpnull)
+nagelkerke(RegModel.Dnp)
+
+
+
+###Independent sample t-tests
+##Tmin~+20lightsource
+#Parametric independent sample t-test
+t.test(tree$T.min.open..T.min.canopy~tree$X20.light,alternative='two.sided', conf.level=.95, var.equal=FALSE, data=tree)
+
+#Levene test of homogeneity of variance
+leveneTest(T.min.open..T.min.canopy ~ X20.lightfactor, data=tree, center="median")
+
+#Effect size - Cohen D
+cohen.d(tree$T.min.open..T.min.canopy,tree$X20.lightfactor,paired=FALSE)
+
+#Yuen robust independent samples test on 20% trimmed means with bootstrap
+yuenbt(T.min.open..T.min.canopy~X20.lightfactor,data=tree)
+
+#Wilcoxon non-parametric signed rank test with continuity correction on independent samples
+with(tree, wilcox.test(X20.light, T.min.open..T.min.canopy, alternative='two.sided',paired=FALSE))
+
+
+##D~Rural
+#Parametric independent sample t-test
+t.test(D....Tmax.open...T.min.open.....T.max.canopy...T.min.canopy.~Ruralfactor,alternative='two.sided', conf.level=.95, var.equal=FALSE, data=tree)
+
+#Levene test of homogeneity of variance
+leveneTest(D....Tmax.open...T.min.open.....T.max.canopy...T.min.canopy. ~ Ruralfactor, data=tree, center="median")
+
+#Effect size - Cohen D
+cohen.d(tree$D....Tmax.open...T.min.open.....T.max.canopy...T.min.canopy.,tree$Ruralfactor,paired=FALSE)
+
+#Yuen robust independent samples test on 20% trimmed means with bootstrap
+yuenbt(D....Tmax.open...T.min.open.....T.max.canopy...T.min.canopy.~Ruralfactor, data=tree)
+
+#Wilcoxon non-parametric signed rank test with continuity correction on independent samples
+with(tree, wilcox.test(Rural, D....Tmax.open...T.min.open.....T.max.canopy...T.min.canopy., alternative='two.sided',paired=FALSE))
+
+
+##D~+20lightsource
+#Parametric independent sample t-test
+t.test(tree$D....Tmax.open...T.min.open.....T.max.canopy...T.min.canopy.~tree$X20.light,alternative='two.sided', conf.level=.95, var.equal=FALSE, data=tree)
+
+#Levene test of homogeneity of variance
+leveneTest(D....Tmax.open...T.min.open.....T.max.canopy...T.min.canopy. ~ X20.lightfactor, data=tree, center="median")
+
+#Effect size - Cohen D
+cohen.d(tree$D....Tmax.open...T.min.open.....T.max.canopy...T.min.canopy.,tree$X20.lightfactor,paired=FALSE)
+
+#Yuen robust independent samples test on 20% trimmed means with bootstrap
+yuenbt(D....Tmax.open...T.min.open.....T.max.canopy...T.min.canopy.~X20.lightfactor, data=tree)
+
+#Wilcoxon non-parametric signed rank test with continuity correction on independent samples
+with(tree, wilcox.test(X20.light, D....Tmax.open...T.min.open.....T.max.canopy...T.min.canopy., alternative='two.sided',paired=FALSE))

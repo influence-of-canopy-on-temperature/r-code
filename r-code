@@ -6,7 +6,7 @@ library(MASS)
 library(foreign)
 library(quantreg)
 library(rcompanion)
-
+library(pwr)
 
 
 ###functions
@@ -38,20 +38,19 @@ summaryR.lm <- function(model, type=c("hc3", "hc0", "hc1", "hc2", "hc4"), ...){
   cat("Note: Heteroscedasticity-consistent standard errors using adjustment", type, "\n")
 }
 
-
-
-
-###Paired analysis
-##T.max.open-T.max.canopy
-#setting environment folder
+###setting environment folder
 setwd("c:/r/tree")
-
 #importing database
 tree <- read.table("results_dataset_tree.txt", header=TRUE, sep="\t", na.strings="NA", dec=".", strip.white=TRUE)
 
+###Paired analysis
+##T.max.open-T.max.canopy
 # parametric paired t-test
 with(tree, (t.test(T.max.open, T.max.canopy, alternative='two.sided', 
                    conf.level=.95, paired=TRUE)))
+
+#power of parametric paired t-test
+pwr.t.test(n = 363, d = 0.16, sig.level = 0.05, type = "paired", alternative = "two.sided")
 
 #Wilcoxon non-parametric signed rank test with continuity correction on paired samples
 with(tree, median(T.max.open - T.max.canopy, na.rm=TRUE)) 
@@ -81,6 +80,9 @@ shapiro.test(tree$T.max.open...T.max.canopy)
 with(tree, (t.test(T.min.open, T.min.canopy, alternative='two.sided', 
                    conf.level=.95, paired=TRUE)))
 
+#power of parametric paired t-test
+pwr.t.test(n = 363, d = -0.85, sig.level = 0.05, type = "paired", alternative = "two.sided")
+
 #Wilcoxon non-parametric signed rank test with continuity correction on paired samples
 with(tree, median(T.min.open - T.min.canopy, na.rm=TRUE)) 
 with(tree, wilcox.test(T.min.open, T.min.canopy, alternative='two.sided', 
@@ -107,6 +109,9 @@ shapiro.test(tree$T.min.open..T.min.canopy)
 # parametric paired t-test
 with(tree, (t.test(Tmax_open.Tmin_open, Tmax_canopy.Tmin_canopy, alternative='two.sided', 
                    conf.level=.95, paired=TRUE)))
+
+#power of parametric paired t-test
+pwr.t.test(n = 363, d = 0.66, sig.level = 0.05, type = "paired", alternative = "two.sided")
 
 #Wilcoxon non-parametric signed rank test with continuity correction on paired samples
 with(tree, median(Tmax_open.Tmin_open - Tmax_canopy.Tmin_canopy, na.rm=TRUE)) 
@@ -137,6 +142,9 @@ shapiro.test(tree$D....Tmax.open...T.min.open.....T.max.canopy...T.min.canopy.)
 RegModel.tmax <- lm(T.max.open...T.max.canopy~Canopy.index+Rural, data=tree)
 summary(RegModel.tmax)
 
+#power of correlation in parametric multiple regression
+pwr.r.test(n = 363, r = 0.226, sig.level = 0.05, alternative = "two.sided")
+
 #Durbin and Watson test on residual autocorrelation
 durbinWatsonTest(RegModel.tmax)
 
@@ -159,6 +167,7 @@ RegModel.tmaxlmrob<-lmrob(T.max.open...T.max.canopy~Canopy.index+Rural, data=tre
 summary(RegModel.tmaxlmrob)
 RegModel.tmaxlmrobnull<-lmrob(T.max.open...T.max.canopy~1, data=tree)
 anova(RegModel.tmaxlmrob, RegModel.tmaxlmrobnull)
+pwr.r.test(n = 363, r = 0.23, sig.level = 0.05, alternative = "two.sided")
 
 #non-parametric quantile regression
 RegModel.tmaxnp<-rq(T.max.open...T.max.canopy~Canopy.index+Rural, data=tree, tau=0.5)
@@ -167,7 +176,7 @@ summary(RegModel.tmaxnp, se="nid")
 model.tmaxnpnull = rq(T.max.open...T.max.canopy~1, data=tree, tau=0.5)
 anova(RegModel.tmaxnp, model.tmaxnpnull)
 nagelkerke(RegModel.tmaxnp)
-
+pwr.r.test(n = 363, r = 0.182, sig.level = 0.05, alternative = "two.sided")
 
 ##D = (Tmax open - T min open) - (T max canopy - T min canopy)
 #Non-linear relationship analysis
@@ -177,6 +186,9 @@ summary(d_nls)
 #Parametric multiple regression
 RegModel.D <- lm(D....Tmax.open...T.min.open.....T.max.canopy...T.min.canopy.~Canopy_index_2+Dist..from.thermometer.under.tree.to.edge.of.canopy..m., data=tree)
 summary(RegModel.D)
+
+#power of correlation in parametric multiple regression
+pwr.r.test(n = 363, r = 0.243, sig.level = 0.05, alternative = "two.sided")
 
 #Durbin and Watson test on residual autocorrelation
 durbinWatsonTest(RegModel.D)
@@ -200,6 +212,7 @@ RegModel.Dlmrob<-lmrob(D....Tmax.open...T.min.open.....T.max.canopy...T.min.cano
 summary(RegModel.Dlmrob)
 RegModel.Dlmrobnull<-lmrob(D....Tmax.open...T.min.open.....T.max.canopy...T.min.canopy.~1, data=tree)
 anova(RegModel.Dlmrob, RegModel.Dlmrobnull)
+pwr.r.test(n = 363, r = 0.21, sig.level = 0.05, alternative = "two.sided")
 
 #non-parametric quantile regression
 RegModel.Dnp<-rq(D....Tmax.open...T.min.open.....T.max.canopy...T.min.canopy.~Canopy_index_2+Dist..from.thermometer.under.tree.to.edge.of.canopy..m., data=tree, tau=0.5)
@@ -208,6 +221,7 @@ summary(RegModel.Dnp, se="nid")
 model.Dnpnull = rq(D....Tmax.open...T.min.open.....T.max.canopy...T.min.canopy.~1, data=tree, tau=0.5)
 anova(RegModel.Dnp, model.Dnpnull)
 nagelkerke(RegModel.Dnp)
+pwr.r.test(n = 363, r = 0.237, sig.level = 0.05, alternative = "two.sided")
 
 
 
@@ -221,6 +235,9 @@ leveneTest(T.min.open..T.min.canopy ~ X20.lightfactor, data=tree, center="median
 
 #Effect size - Cohen D
 cohen.d(tree$T.min.open..T.min.canopy,tree$X20.lightfactor,paired=FALSE)
+
+#power of parametric independent samples t-test
+pwr.t.test(n = 363, d = 0.3, sig.level = 0.05, type = "two.sample", alternative = "two.sided")
 
 #Yuen robust independent samples test on 20% trimmed means with bootstrap
 yuenbt(T.min.open..T.min.canopy~X20.lightfactor,data=tree)
@@ -239,6 +256,9 @@ leveneTest(D....Tmax.open...T.min.open.....T.max.canopy...T.min.canopy. ~ Ruralf
 #Effect size - Cohen D
 cohen.d(tree$D....Tmax.open...T.min.open.....T.max.canopy...T.min.canopy.,tree$Ruralfactor,paired=FALSE)
 
+#power of parametric independent samples t-test
+pwr.t.test(n = 363, d = -0.31, sig.level = 0.05, type = "two.sample", alternative = "two.sided")
+
 #Yuen robust independent samples test on 20% trimmed means with bootstrap
 yuenbt(D....Tmax.open...T.min.open.....T.max.canopy...T.min.canopy.~Ruralfactor, data=tree)
 
@@ -255,6 +275,9 @@ leveneTest(D....Tmax.open...T.min.open.....T.max.canopy...T.min.canopy. ~ X20.li
 
 #Effect size - Cohen D
 cohen.d(tree$D....Tmax.open...T.min.open.....T.max.canopy...T.min.canopy.,tree$X20.lightfactor,paired=FALSE)
+
+#power of parametric independent samples t-test
+pwr.t.test(n = 363, d = -0.22, sig.level = 0.05, type = "two.sample", alternative = "two.sided")
 
 #Yuen robust independent samples test on 20% trimmed means with bootstrap
 yuenbt(D....Tmax.open...T.min.open.....T.max.canopy...T.min.canopy.~X20.lightfactor, data=tree)
